@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 def get_training_hist(trainer):
-    return trainer.state.log_history
+    return pd.DataFrame(trainer.state.log_history)
 
 def merge_training_hist(new_hist, dataset_name, merged_hist):
     
@@ -32,3 +32,7 @@ def save_model_weights(trainer, path: str, save_name=None):
         trainer.save_model(os.path.join(path, 'weights.pt'))
     else:
         trainer.save_model(os.path.join(path, f'{save_name}.pt'))
+        
+
+def get_df(path) -> pd.DataFrame:
+    return pd.read_csv(path + '/' + path.split('/')[-1] + '.csv', index_col=False)
