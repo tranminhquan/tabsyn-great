@@ -122,13 +122,13 @@ for epoch in range(TOTAL_EPOCHS):
         )
         
         ds_name = os.path.basename(path)
-
-        print('\t - Update training history')
-        training_hist = merge_training_hist(get_training_hist(great_trainer), ds_name, training_hist)
         
         print('\t - Training')
         # Start training
         great_trainer.train()
+        
+        print('\t - Update training history')
+        training_hist = merge_training_hist(get_training_hist(great_trainer), ds_name, training_hist)
         
         print('\t -> Finished')
                 # break

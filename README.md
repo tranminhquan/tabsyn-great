@@ -45,3 +45,55 @@ CHECKPOINT_EPOCH = 25 # save after every checkpoint epoch
 BATCH_SIZE = 32 # paper
 LR = 5.e-5 # paper
 ```
+
+# Finetuning
+
+Create directory to store experiment results  
+`mkdir rs/finetune_val`  
+`mkdir rs/finetune_test`  
+
+Run finetuning  
+`python finetune.py`  
+
+Configuration
+```python
+DATA_PATH= 'data/processed_dataset'
+PRETRAIN_PATH = 'rs/pretraining/weights.pt'
+SAVE_PATH = 'rs/finetune_val'
+SPLIT_INFO_PATH = 'split_3sets.json'
+SET_NAME = 'val_paths' # val_paths / test_paths 
+
+TOTAL_EPOCHS = 500
+BATCH_SIZE = 32 # paper
+LR = 5.e-5 # paper
+```
+
+To run for test set:
+* Change `SAVE_PATH` from `'rs/finetune_val'` to `'rs/finetune_test'`
+* Chnange `SET_NAME` from `'val_paths'` to `'test_paths'`
+
+# Single training
+
+Create directory to store experiment results  
+`mkdir rs/single_val`  
+`mkdir rs/single_test`  
+
+Run finetuning  
+`python singletrain.py`  
+
+Configuration
+```python
+DATA_PATH= 'data/processed_dataset'
+PRETRAIN_PATH = 'rs/pretraining/weights.pt'
+SAVE_PATH = 'rs/single_val'
+SPLIT_INFO_PATH = 'split_3sets.json'
+SET_NAME = 'val_paths' # val_paths / test_paths 
+
+TOTAL_EPOCHS = 500
+BATCH_SIZE = 32 # paper
+LR = 5.e-5 # paper
+```
+
+To run for test set:
+* Change `SAVE_PATH` from `'rs/single_val'` to `'rs/single_test'`
+* Change `SET_NAME` from `'val_paths'` to `'test_paths'`
