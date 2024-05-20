@@ -25,6 +25,7 @@ DATA_PATH= 'data/processed_dataset'
 SAVE_PATH = 'rs/single_val'
 SPLIT_INFO_PATH = 'split_3sets.json'
 SET_NAME = 'val_paths' # val_paths / test_paths 
+RESUME_TRAINING = False
 
 TOTAL_EPOCHS = 500
 # CHECKPOINT_EPOCH = 25 # save after every checkpoint epoch
@@ -47,15 +48,24 @@ MODEL_CONFIG = {
     "verbose": True
 }
 
-training_hist = []
+if RESUME_TRAINING:
+    latest_training = load_latest_training_info(SAVE_PATH)
+    END_DATASET = latest_training['dataset']
+    training_hist = pd.read_csv(os.path.join(SAVE_PATH, 'training_hist.csv'), index_col=0)
+else:
+    training_hist = []
 
 # list_data_paths = os.listdir(data_path)
 split_info = json.load(open(SPLIT_INFO_PATH, 'r'))
 
 list_data_paths = split_info[SET_NAME]
-list_data_paths
+
+START_INDEX = list_data_paths.index(END_DATASET) + 1 if RESUME_TRAINING else 0
 
 for i, path in enumerate(list_data_paths):
+    
+    if i < START_INDEX:
+        continue
     
     dataset_save_path = os.path.join(SAVE_PATH, path)
     
@@ -70,30 +80,27 @@ for i, path in enumerate(list_data_paths):
         
     print(f'path: {path} | dataset: {path} | n_cols: {n_cols}, n_rows: {n_rows}')
     
-    print('\t - Split')
     df, df_val = train_test_split(df, test_size=0.3, random_state=121)
 
     single_great_model.init_column_info(df)
     
-    print('\t - Create training set')
     # train set
     great_ds_train = GReaTDataset.from_pandas(df)
 
-    print('\t - Create validation set')
     # val set
     great_ds_val = GReaTDataset.from_pandas(df_val)
     
-    if 10 < n_cols <= 20:
-        MODEL_CONFIG['batch_size'] = 16
-        MODEL_CONFIG['batch_size'] = 16
+    # if 10 < n_cols <= 20:
+    #     MODEL_CONFIG['batch_size'] = 16
+    #     MODEL_CONFIG['batch_size'] = 16
     
-    if 20 < n_cols <= 30:
-        MODEL_CONFIG['batch_size'] = 8
-        MODEL_CONFIG['batch_size'] = 8
+    # if 20 < n_cols <= 30:
+    #     MODEL_CONFIG['batch_size'] = 8
+    #     MODEL_CONFIG['batch_size'] = 8
         
-    if n_cols > 30:
-        MODEL_CONFIG['batch_size'] = 2
-        MODEL_CONFIG['batch_size'] = 2
+    # if n_cols > 30:
+    #     MODEL_CONFIG['batch_size'] = 2
+    #     MODEL_CONFIG['batch_size'] = 2
         
     single_trainer = single_great_model.fit(great_ds_train,
                            great_ds_val,
@@ -101,19 +108,16 @@ for i, path in enumerate(list_data_paths):
                            great_trainer=None,
                            early_stopping=True)
     
-    print('\t - Training')
     # Start training
     
     ds_name = os.path.basename(path)
 
-    print('\t - Update training history')
     training_hist = merge_training_hist(get_training_hist(single_trainer), ds_name, training_hist)
-    print('DEBUG training_hist tail: ', training_hist.tail(10))
-    print('\t -> Finished')
     
-    MODEL_CONFIG['batch_size'] = BATCH_SIZE
+    # MODEL_CONFIG['batch_size'] = BATCH_SIZE
     
     save_training_history(training_hist, SAVE_PATH)
+    save_latest_ds_training_great(ds_name, SAVE_PATH)
     
     
     

@@ -24,6 +24,7 @@ from utils import *
 DATA_PATH= 'data/processed_dataset'
 SAVE_PATH = 'rs/pretraining'
 SPLIT_INFO_PATH = 'split_3sets.json'
+RESUME_TRAINING = False
 
 TOTAL_EPOCHS = 500
 CHECKPOINT_EPOCH = 100 # save after every checkpoint epoch
@@ -46,10 +47,27 @@ MODEL_CONFIG = {
     "verbose": True
 }
 
-great_model = CustomGReaT('distilgpt2', 'distilgpt2',
+if RESUME_TRAINING:
+    latest_training = load_latest_training_info(SAVE_PATH)
+    START_EPOCH = latest_training['epoch'] + 1
+    WEIGHTS_PATH = latest_training['weights']
+    RESUME_DECODER = latest_training['decoder_weight']
+    HISTORY_FILENAME = f'training_hist_e{START_EPOCH}'
+    
+    great_model = CustomGReaT(WEIGHTS_PATH, 'distilgpt2',
                           SAVE_PATH,
                           MODEL_CONFIG['epochs'],
                           MODEL_CONFIG['batch_size'])
+    
+else:
+    START_EPOCH = 0
+    HISTORY_FILENAME = 'training_hist'
+    
+    great_model = CustomGReaT('distilgpt2', 'distilgpt2',
+                          SAVE_PATH,
+                          MODEL_CONFIG['epochs'],
+                          MODEL_CONFIG['batch_size'])
+
 
 training_args = TrainingArguments(
             output_dir=SAVE_PATH,
@@ -70,7 +88,7 @@ split_info = json.load(open(SPLIT_INFO_PATH, 'r'))
 list_data_paths = split_info['pretrain_paths']
 list_data_paths
 
-for epoch in range(TOTAL_EPOCHS):
+for epoch in range(START_EPOCH, TOTAL_EPOCHS):
     
     random.shuffle(list_data_paths)
     print(f'Epoch {epoch} with shuffled datasets {list_data_paths}')
@@ -84,34 +102,30 @@ for epoch in range(TOTAL_EPOCHS):
         
         print(f'Epoch: {epoch} | dataset: {path} | n_cols: {n_cols}, n_rows: {n_rows}')
         
-        print('\t - Split')
         df, df_val = train_test_split(df, test_size=0.3, random_state=121)
         
         if epoch == 0:
             great_model.init_column_info(df)
 
-        print('\t - Create training set')
         # train set
         great_ds_train = GReaTDataset.from_pandas(df)
-
-        print('\t - Create validation set')
+        
         # val set
         great_ds_val = GReaTDataset.from_pandas(df_val)
             
-        #     try:
-        if 10 < n_cols <= 20:
-            training_args.per_device_train_batch_size = 16
-            training_args.per_device_eval_batch_size = 16
+        # adaptively configure batch size to avoid out-of-memory
+        # if 10 < n_cols <= 20:
+        #     training_args.per_device_train_batch_size = 16
+        #     training_args.per_device_eval_batch_size = 16
         
-        if 20 < n_cols <= 30:
-            training_args.per_device_train_batch_size = 8
-            training_args.per_device_eval_batch_size = 8
+        # if 20 < n_cols <= 30:
+        #     training_args.per_device_train_batch_size = 8
+        #     training_args.per_device_eval_batch_size = 8
             
-        if n_cols > 30:
-            training_args.per_device_train_batch_size = 2
-            training_args.per_device_eval_batch_size = 2
+        # if n_cols > 30:
+        #     training_args.per_device_train_batch_size = 2
+        #     training_args.per_device_eval_batch_size = 2
         
-        print('\t - Training')    
         great_trainer = great_model.fit(great_ds_train, great_ds_val,
                         training_args,
                         resume_from_checkpoint=False,
@@ -119,10 +133,8 @@ for epoch in range(TOTAL_EPOCHS):
         
         ds_name = os.path.basename(path)
         
-        print('\t - Update training history')
         training_hist = merge_training_hist(get_training_hist(great_trainer), ds_name, training_hist)
         
-        print('\t -> Finished')
                 # break
                 
         #     except:
@@ -130,20 +142,23 @@ for epoch in range(TOTAL_EPOCHS):
         #         training_args.per_device_eval_batch_size //=  2
         #         print(f'*Out of memeory caught, reduce batch size to {training_args.per_device_train_batch_size}')
                 
-        training_args.per_device_train_batch_size = MODEL_CONFIG['batch_size']
-        training_args.per_device_eval_batch_size = MODEL_CONFIG['batch_size']
-        
-        
-    print(f'* Update checkpoint at epoch {epoch}')
+        # training_args.per_device_train_batch_size = MODEL_CONFIG['batch_size']
+        # training_args.per_device_eval_batch_size = MODEL_CONFIG['batch_size']
+    
+    # save latested training info
+    weight_temp_name = f'temp_weights'
+    save_model_weights(great_trainer, SAVE_PATH, save_names=weight_temp_name)
+    save_latest_pretrain_info_great(epoch, weight_temp_name, SAVE_PATH)   
+    
+    
     # save checkpoint
     if epoch >= CHECKPOINT_EPOCH and epoch % CHECKPOINT_EPOCH == 0:
         checkpoint = f'checkpoint_{epoch}'
         model_save_path = os.path.join(SAVE_PATH, f'weights_{checkpoint}')
         great_trainer.save_model(model_save_path)
     
-    print(f'* Save history at epoch {epoch}')
     # save training history at each epoch    
-    save_training_history(training_hist, SAVE_PATH)
+    save_training_history(training_hist, SAVE_PATH, HISTORY_FILENAME)
 
 save_model_weights(great_trainer, SAVE_PATH)
-save_training_history(training_hist, SAVE_PATH)
+save_training_history(training_hist, SAVE_PATH, HISTORY_FILENAME)

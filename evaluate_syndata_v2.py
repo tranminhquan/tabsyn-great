@@ -10,6 +10,7 @@ SET_NAME = 'val_paths'
 FINETUNE_PATH = 'rs/finetune_val'
 SINGLETRAIN_PATH = 'rs/single_val'
 SCORE_SAVE_PATH = 'rs/scores_val.csv'
+RESUME_EVALUATION = False
 
 TOTAL_EPOCHS = 500
 BATCH_SIZE = 32 # paper
@@ -29,12 +30,23 @@ MODEL_CONFIG = {
     "verbose": True
 }
 
-list_data_paths = json.load(open(SPLIT_INFO_PATH, 'r'))[SET_NAME]
+if RESUME_EVALUATION:
+    latest_eval = load_latest_training_info(os.path.dirname(SCORE_SAVE_PATH), 'latest_evaluation')
+    END_DATASET = latest_eval['dataset']
+    
+    ft_merged_df = pd.read_csv(os.path.join(FINETUNE_PATH, 'temp_scores.csv'), index_col=0)
+    st_merged_df = pd.read_csv(os.path.join(SINGLETRAIN_PATH, 'temp_scores.csv'), index_col=0)
+else:
+    ft_merged_df = []
+    st_merged_df = []
 
-ft_merged_df = []
-st_merged_df = []
+list_data_paths = json.load(open(SPLIT_INFO_PATH, 'r'))[SET_NAME]    
+START_INDEX = list_data_paths.index(END_DATASET) + 1 if RESUME_EVALUATION else 0
 
-for ds in list_data_paths:
+for i, ds in enumerate(list_data_paths):
+    
+    if i < START_INDEX:
+        continue
     
     # path
     path = os.path.join(DATA_PATH, ds)
@@ -69,10 +81,11 @@ for ds in list_data_paths:
     ft_merged_df = add_score_df(ft_report, ds, ft_merged_df)
     st_merged_df = add_score_df(st_report, ds, st_merged_df)
     
-
-# save ft and st scores
-# ft_merged_df.to_csv(os.path.join(FINETUNE_PATH, 'scores.csv'))
-# st_merged_df.to_csv(os.path.join(SINGLETRAIN_PATH, 'scores.csv'))
+    # save ft and st scores
+    ft_merged_df.to_csv(os.path.join(FINETUNE_PATH, 'temp_scores.csv'))
+    st_merged_df.to_csv(os.path.join(SINGLETRAIN_PATH, 'temp_scores.csv'))
+    
+    save_latest_ds_training_great(ds, os.path.dirname(SCORE_SAVE_PATH), 'latest_evaluation')
 
 # merge scores
 score_df = ft_merged_df.merge(st_merged_df, on='dataset', suffixes=['_ft', '_st'])

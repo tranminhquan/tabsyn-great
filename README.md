@@ -39,6 +39,7 @@ Configuration
 DATA_PATH= 'data/processed_dataset'
 SAVE_PATH = 'rs/pretraining'
 SPLIT_INFO_PATH = 'split_3sets.json'
+RESUME_TRAINING = False
 
 TOTAL_EPOCHS = 500
 CHECKPOINT_EPOCH = 25 # save after every checkpoint epoch
@@ -62,6 +63,7 @@ PRETRAIN_PATH = 'rs/pretraining/weights.pt'
 SAVE_PATH = 'rs/finetune_val'
 SPLIT_INFO_PATH = 'split_3sets.json'
 SET_NAME = 'val_paths' # val_paths / test_paths 
+RESUME_TRAINING = False
 
 TOTAL_EPOCHS = 500
 BATCH_SIZE = 32 # paper
@@ -88,6 +90,7 @@ PRETRAIN_PATH = 'rs/pretraining/weights.pt'
 SAVE_PATH = 'rs/single_val'
 SPLIT_INFO_PATH = 'split_3sets.json'
 SET_NAME = 'val_paths' # val_paths / test_paths 
+RESUME_TRAINING = False
 
 TOTAL_EPOCHS = 500
 BATCH_SIZE = 32 # paper
@@ -99,6 +102,9 @@ To run for test set:
 * Change `SET_NAME` from `'val_paths'` to `'test_paths'`
 
 # Evaluate synthetic data
+```python
+RESUME_EVALUATION = False
+```
 
 Run `python evaluate_syndata_v2.py` to generate scoring
 

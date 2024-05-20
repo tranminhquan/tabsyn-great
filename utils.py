@@ -96,3 +96,31 @@ def add_score_df(new_report: QualityReport, dataset, merged_df):
         merged_df = pd.concat([merged_df, new_df])
         
     return merged_df
+
+def save_latest_pretrain_info_great(epoch, weight_path, path, filename=None):
+    latest_training_info = {
+        'epoch': epoch,
+        'weights': weight_path,
+    }
+    
+    filename = 'latest_training' if filename is None else filename
+    json.dump(latest_training_info, open(os.path.join(path, f'{filename}.json'), 'w'))
+    
+def save_latest_ds_training_great(dataset_name, path, filename=None):
+    latest_training_info = {
+        'dataset': dataset_name,
+    }
+    
+    filename = 'latest_training' if filename is None else filename
+    json.dump(latest_training_info, open(os.path.join(path, f'{filename}.json'), 'w'))
+    
+def load_latest_training_info(path, filename=None):
+    filename = 'latest_training' if filename is None else filename
+    return json.load(open(os.path.join(path, f'{filename}.json'), 'r'))
+
+def save_training_history(training_hist: pd.DataFrame, path: str, filename=None):
+    # index as orders to remember the sequence of training
+    training_hist.index = range(len(training_hist))
+    
+    filename = 'training_hist' if filename is None else filename
+    training_hist.to_csv(os.path.join(path, f'{filename}.csv'))

@@ -14,3 +14,6 @@ mlruns/*
 rs/*
 rs_*
 test_weights.pt/
+test_code.ipynb
+*.ipynb
+.ipynb
