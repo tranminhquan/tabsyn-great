@@ -9,19 +9,19 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-# Download and extract processed Kaggle datasets
+<!-- # Download and extract processed Kaggle datasets
 
 Create directory to store data  
 `mkdir data`
 
-Download 1k2 Kaggle datasets at [GGDrive](https://drive.google.com/file/d/1VDAwgIp6Ts_rh3Vfm6dwOzrlFabiXkv8/view?usp=drive_link) into folder `data/`
+Download 1k2 Kaggle datasets at [GGDrive](https://drive.google.com/file/d/1oIcTzLupszhIjy6VUG7WK5l5vOYCXOEi/view?usp=drive_link) into folder `data/`
 
 Extract data  
 `cd data`  
 `unzip data_v3.zip`  
 `cd ../`
 
-The above command will extract datasets into `data/processed_dataset`
+The above command will extract datasets into `data/processed_dataset` -->
 
 # Pretraining
 
@@ -31,7 +31,7 @@ Create directory to store experiment results
 
 
 Train a model on a large dataset (pretraining)  
-`python pretrain.py`
+`python pretrain_v2.py`
 
 
 Configuration
@@ -53,7 +53,7 @@ Create directory to store experiment results
 `mkdir rs/finetune_test`  
 
 Run finetuning  
-`python finetune.py`  
+`python finetune_v2.py`  
 
 Configuration
 ```python
@@ -79,7 +79,7 @@ Create directory to store experiment results
 `mkdir rs/single_test`  
 
 Run finetuning  
-`python singletrain.py`  
+`python singletrain_v2.py`  
 
 Configuration
 ```python
@@ -97,3 +97,12 @@ LR = 5.e-5 # paper
 To run for test set:
 * Change `SAVE_PATH` from `'rs/single_val'` to `'rs/single_test'`
 * Change `SET_NAME` from `'val_paths'` to `'test_paths'`
+
+# Evaluate synthetic data
+
+Run `python evaluate_syndata_v2.py` to generate scoring
+
+# Report
+* Clone `report_template.ipynb` and set name
+* Replace `FINETUNE_PATH` and `SINGLETRAIN_PATH`
+* Replace `VAL_SCORE_PATH` and `TEST_SCORE_PATH` to show the socres

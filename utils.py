@@ -1,6 +1,8 @@
 
 import os
 import pandas as pd
+from sdmetrics.reports.single_table import QualityReport
+import json
 
 def get_training_hist(trainer):
     return pd.DataFrame(trainer.state.log_history)
@@ -29,10 +31,68 @@ def save_model_weights(trainer, save_path):
 def save_model_weights(trainer, path: str, save_name=None):
     
     if save_name is None:
-        trainer.save_model(os.path.join(path, 'weights.pt'))
+        # trainer.save_model(os.path.join(path, 'weights.pt'))
+        trainer.save_model(os.path.join(path, 'weights'))
     else:
-        trainer.save_model(os.path.join(path, f'{save_name}.pt'))
+        # trainer.save_model(os.path.join(path, f'{save_name}.pt'))
+        trainer.save_model(os.path.join(path, f'{save_name}'))
         
 
-def get_df(path) -> pd.DataFrame:
-    return pd.read_csv(path + '/' + path.split('/')[-1] + '.csv', index_col=False)
+def get_df(path, strict_mode=True) -> pd.DataFrame:
+    csv_path = path + '/' + path.split('/')[-1] + '.csv'
+    if not strict_mode:
+        return pd.read_csv(csv_path, index_col=False)
+    else:
+        try:
+            df = pd.read_csv(csv_path, on_bad_lines='skip', encoding = 'utf-8')
+        except:
+            df = pd.read_csv(csv_path, on_bad_lines='skip', encoding = 'utf-8', lineterminator='\n', quoting=csv.QUOTE_NONE)
+        
+    return df
+
+def scoring(real_data, synthetic_data, metadata) -> QualityReport:
+    report = QualityReport()
+    
+    report.generate(real_data, synthetic_data, metadata)
+    
+    return report
+
+def get_metadata(path) -> dict:
+    return json.load(open(path + '/metadata.json'))
+
+def filter_metdata(metadata, columns):
+    
+    new_metadata = {}
+    new_metadata['primary_key'] = metadata['primary_key']
+
+    columns_dict = {}
+    for k,v in metadata['columns'].items():
+        
+        if k not in columns:
+            continue
+        
+        columns_dict[k] = {}
+        for i,j in v.items():
+            columns_dict[k][i] = j
+                
+    new_metadata['primary_key'] = metadata['primary_key']
+    new_metadata['columns'] = columns_dict
+
+    return new_metadata
+
+def add_score_df(new_report: QualityReport, dataset, merged_df):
+    new_df = pd.DataFrame([{
+        'dataset': str(dataset),
+        'column_shapes': new_report.get_properties().iloc[0, 1],
+        'column_pair_trends': new_report.get_properties().iloc[1,1],
+        'overall_score': new_report.get_score(),
+    }]
+    )
+    
+    if len(merged_df) == 0:
+        merged_df = new_df
+        
+    else:
+        merged_df = pd.concat([merged_df, new_df])
+        
+    return merged_df

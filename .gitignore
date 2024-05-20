@@ -10,3 +10,7 @@ examples/iris*
 examples/trainer_*
 
 data/*
+mlruns/*
+rs/*
+rs_*
+test_weights.pt/

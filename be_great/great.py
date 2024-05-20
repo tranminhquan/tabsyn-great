@@ -10,7 +10,7 @@ import pandas as pd
 from tqdm import tqdm
 
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments
+from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, EarlyStoppingCallback
 
 from sklearn.model_selection import train_test_split
 
@@ -568,11 +568,12 @@ class CustomGReaT:
 
     def __init__(
         self,
-        llm: str,
-        experiment_dir: str = "trainer_great",
+        pretrained_llm: str = "distilgpt2",
+        pretrained_tokenizer: str = "distilgpt2",
+        experiment_dir: str = None,
         epochs: int = 100,
         batch_size: int = 8,
-        efficient_finetuning: str = "",
+        model_max_length: int = 512,
         **train_kwargs,
     ):
         """Initializes GReaT.
@@ -588,43 +589,15 @@ class CustomGReaT:
              https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
         """
         # Load Model and Tokenizer from HuggingFace
-        self.efficient_finetuning = efficient_finetuning
-        self.llm = llm
-        self.tokenizer = AutoTokenizer.from_pretrained(self.llm)
+        self.pretrained_llm = pretrained_llm
+        self.pretrained_tokenizer = pretrained_tokenizer
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(self.pretrained_tokenizer)
+        self.tokenizer.model_max_length = model_max_length
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(self.llm)
-
-        if self.efficient_finetuning == "lora":
-            # Lazy importing
-            try:
-                from peft import (
-                    LoraConfig,
-                    get_peft_model,
-                    prepare_model_for_int8_training,
-                    TaskType,
-                )
-            except ImportError:
-                raise ImportError(
-                    "This function requires the 'peft' package. Please install it with - pip install peft"
-                )
-
-            # Define LoRA Config
-            lora_config = LoraConfig(
-                r=16,  # only training 0.16% of the parameters of the model
-                lora_alpha=32,
-                target_modules=[
-                    "c_attn"
-                ],  # this is specific for gpt2 model, to be adapted
-                lora_dropout=0.05,
-                bias="none",
-                task_type=TaskType.CAUSAL_LM,  # this is specific for gpt2 model, to be adapted
-            )
-            # prepare int-8 model for training
-            self.model = prepare_model_for_int8_training(self.model)
-            # add LoRA adaptor
-            self.model = get_peft_model(self.model, lora_config)
-            self.model.print_trainable_parameters()
-
+        
+        self.model = AutoModelForCausalLM.from_pretrained(self.pretrained_llm)
+        
         # Set the training hyperparameters
         self.experiment_dir = experiment_dir
         self.epochs = epochs
@@ -636,14 +609,19 @@ class CustomGReaT:
         self.num_cols = None
         self.conditional_col = None
         self.conditional_col_dist = None
+        
+    def init_column_info(self, df, conditional_col=None):
+        self._update_column_information(df)
+        self._update_conditional_information(df, conditional_col)
 
     def fit(
         self,
-        data: tp.Union[pd.DataFrame, np.ndarray],
-        test_size:float = 0.3,
-        column_names: tp.Optional[tp.List[str]] = None,
-        conditional_col: tp.Optional[str] = None,
+        great_ds_train: GReaTDataset,
+        great_ds_val: GReaTDataset,
+        training_args: TrainingArguments = None,
+        great_trainer: GReaTTrainer = None,
         resume_from_checkpoint: tp.Union[bool, str] = False,
+        early_stopping: bool = False,
     ) -> GReaTTrainer:
         """Fine-tune GReaT using tabular data.
 
@@ -659,47 +637,63 @@ class CustomGReaT:
         Returns:
             GReaTTrainer used for the fine-tuning process
         """
-        df = _array_to_dataframe(data, columns=column_names)
         
-        df, df_val = train_test_split(df, test_size=test_size)
-        
-        self._update_column_information(df)
-        self._update_conditional_information(df, conditional_col)
-        
-        self._update_column_information(df_val)
-        self._update_conditional_information(df_val, conditional_col)
-        
-        print('dataframe: ', df, df_val)
-
-        # Convert DataFrame into HuggingFace dataset object
-        logging.info("Convert data into HuggingFace dataset object...")
-        
-        # train set
-        great_ds = GReaTDataset.from_pandas(df)
-        great_ds.set_tokenizer(self.tokenizer)
-        
-        # val set
-        great_ds_val = GReaTDataset.from_pandas(df_val)
+        great_ds_train.set_tokenizer(self.tokenizer)
         great_ds_val.set_tokenizer(self.tokenizer)
-        
-        print('dataset: ', great_ds, great_ds_val)
 
         # Set training hyperparameters
         logging.info("Create GReaT Trainer...")
-        training_args = TrainingArguments(
-            self.experiment_dir,
-            num_train_epochs=self.epochs,
-            per_device_train_batch_size=self.batch_size,
-            **self.train_hyperparameters,
-        )
-        great_trainer = GReaTTrainer(
-            self.model,
-            training_args,
-            train_dataset=great_ds,
-            eval_dataset=great_ds_val,
-            tokenizer=self.tokenizer,
-            data_collator=GReaTDataCollator(self.tokenizer),
-        )
+        if not training_args:
+            assert self.experiment_dir is not None
+            
+            if not early_stopping:
+                training_args = TrainingArguments(
+                    self.experiment_dir,
+                    save_strategy='no',
+                    num_train_epochs=self.epochs,
+                    per_device_train_batch_size=self.batch_size,
+                    per_device_eval_batch_size=self.batch_size,
+                    logging_strategy='epoch',
+                    do_eval=True,
+                    evaluation_strategy='epoch',
+                    **self.train_hyperparameters,
+                )
+            else:
+                training_args = TrainingArguments(
+                    output_dir=self.experiment_dir,
+                    save_strategy='epoch',
+                    num_train_epochs=self.epochs,
+                    per_device_train_batch_size=self.batch_size,
+                    per_device_eval_batch_size=self.batch_size,
+                    logging_strategy='epoch',
+                    do_eval=True,
+                    evaluation_strategy='epoch',
+                    metric_for_best_model = 'eval_loss',
+                    save_total_limit=1,
+                    load_best_model_at_end=True,
+                    **self.train_hyperparameters,
+                )
+                
+        if not great_trainer:
+            if not early_stopping:
+                great_trainer = GReaTTrainer(
+                    self.model,
+                    training_args,
+                    train_dataset=great_ds_train,
+                    eval_dataset=great_ds_val,
+                    tokenizer=self.tokenizer,
+                    data_collator=GReaTDataCollator(self.tokenizer),
+                )
+            else:
+                great_trainer = GReaTTrainer(
+                    self.model,
+                    training_args,
+                    train_dataset=great_ds_train,
+                    eval_dataset=great_ds_val,
+                    tokenizer=self.tokenizer,
+                    data_collator=GReaTDataCollator(self.tokenizer),
+                    callbacks = [EarlyStoppingCallback(early_stopping_patience=7)],
+                )
 
         # Start training
         logging.info("Start training...")
@@ -741,6 +735,8 @@ class CustomGReaT:
         """
         great_start = self._get_start_sampler(start_col, start_col_dist)
 
+        device = torch.device(device) if device == "cuda" and torch.cuda.is_available() else torch.device("cpu")
+        
         # Move model to device
         self.model.to(device)
 
