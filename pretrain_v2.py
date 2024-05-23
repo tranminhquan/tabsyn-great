@@ -106,12 +106,27 @@ for epoch in range(START_EPOCH, TOTAL_EPOCHS):
         
         if epoch == 0:
             great_model.init_column_info(df)
-
-        # train set
-        great_ds_train = GReaTDataset.from_pandas(df)
         
-        # val set
-        great_ds_val = GReaTDataset.from_pandas(df_val)
+        try:
+            # train set
+            great_ds_train = GReaTDataset.from_pandas(df)
+            
+            # val set
+            great_ds_val = GReaTDataset.from_pandas(df_val)
+        except:
+            # this exception is expected to only deal with 1 dataset in gittables due to mixed dtypes
+            # [CAUTION] below is only a workaround solution
+            
+            
+            df = df.astype(str)
+            df_val = df_val.astype(str)
+            
+            # train set
+            great_ds_train = GReaTDataset.from_pandas(df)
+
+            # val set
+            great_ds_val = GReaTDataset.from_pandas(df_val)
+            
             
         # adaptively configure batch size to avoid out-of-memory
         # if 10 < n_cols <= 20:
